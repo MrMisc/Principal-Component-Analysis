@@ -1,0 +1,262 @@
+---
+title: "Assignment 3 STAT 394"
+author: 'Irshad Ul Ala    '
+date: " `r format(Sys.Date(),'%Y%m%d')`"
+classoption: 12pt
+output:
+  pdf_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 2
+  html_document:
+    toc: yes
+    toc_depth: '2'
+    df_print: paged
+---
+
+
+
+```{r load myData, include=FALSE}
+load(file = "data.Rdata")
+```
+
+
+# Principal Component Analysis (PCA) of the wine dataset
+
+
+```{r setup, include = FALSE}
+library(ggplot2)
+library(GGally)
+library(gridExtra)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+
+
+
+
+
+## Changing Class into a factor
+
+
+
+```{r} 
+str(wine)
+```
+
+A quick examination of the dataset shows that importing the data has by default defined the 3 classes as an integer, which we change with the factor function.
+
+```{r}
+wine$Class <- factor(wine$Class,levels = c("1","2","3"),labels=c("Class 1","Class 2","Class 3"));str(wine)
+```
+
+
+
+
+## Correlation between pairs of the numerical variables
+
+We begin by examining if the wine dataset has numerical variables which demonstrate significant correlation. If there is significant collinearity between variables, we should consider a principal component analysis, and observe what linear combinations of the numerical variables would constitute orthogonal sets of axes that are linearly independent from each other, implying zero correlation between "sets' of numerical variables.
+
+
+```{r}
+ggpairs(wine[,-1])
+```
+
+
+## Identifying significant correlations >0.7
+
+Using the scale function, the wine dataset is copied and standardized ('normalised') so that we can form a correlation matrix directly from the covariance matrix function.
+
+Following that, we will filter out the correlation values that are above a magnitude of 0.7, to get an idea of the number of pairs of variables with high correlation.
+
+```{r}
+winecopy<-scale(wine[,-1])
+titles<-names(wine)[-1]
+
+for(i in 1:13){
+for(j in 1:13){
+  cor = cov(winecopy)[i,j]
+  if(abs(i-j)>0){
+    if(abs(cor)>=0.7){
+      print(cor)
+      print(titles[i])
+      print('correlation with')
+      print(titles[j])
+      print("---")
+      }
+    }
+  }
+}
+```
+
+Due to the nature of covariance
+
+$$ Cov(X,Y) = E[(X-\mu_X)(Y-\mu_Y)] = E[(Y-\mu_Y)(X-\mu_X)] = Cov(Y,X)$$
+
+,the matrix is a symmetric matrix, and as such we will be finding the same high correlation twice. In other words, despite there having been 4 located correlations with a correlation coefficient magnitude above 0.7, there are in reality, 4/2=2 pairs of variables with high correlation with each other: Flavonoids with Diluted wines, and Flavonoids with Total Phenols.
+
+
+
+## Applying Principal Component Analysis to dataframe
+
+### The Principal Axes
+
+Removing the first 'Class' column, we apply principal component analysis. We begin by examining what the principal axes would look like. The coefficients per row of each Principal Component(PC) vector indicate the coefficient required to form the linearly independent eigenvector.
+
+
+```{r}
+PCAwp<-prcomp(wine[,-1], center=TRUE, scale=TRUE)
+options(digits=2)
+PCAwp$rotation[,1:8]
+```
+
+Due to the number of variables, it is difficult to recognise special eigenvectors (like an eigenvector indicating the 'mean' and so forth). However, some basic observations can be made, such as the fact that the variable Ash and Color Intensity, are not significant contributors to forming the first eigenvector.
+
+In contrast, Total Phenols and Alcalinity of Ash become unimportant variables to constructing the second eigenvector.
+
+However, it is also important to quantify the significance of each of the principal component axes in explaining the variation in the model.
+
+
+
+### Amount of Variation explained by each principal component axis/eigenvector
+
+```{r}
+summary(PCAwp)
+plot(PCAwp,type="l")
+```
+
+
+Unlike previous cases, it is evident that the first eigenvector does not explain an exponentially larger amount of variation compared to the other axes. By design, it inevitably explains the most, but at more than 50% effectiveness, the 2nd principal axis, PC2, is able to explain the variation of the data points (19.2% for PC2 and 36.2% for PC1). This trend appears to continue all the way to the final principal axis, PC13.
+
+
+## Visualisations
+
+
+
+### Effectiveness of PC1 and PC2 in distinguishing classes visually
+
+```{r}
+newdata<-cbind(wine, PCAwp$x[,1:2])
+ggplot(newdata, aes(PC1, PC2, col=Class, fill=Class))+
+stat_ellipse(geom="polygon", col = "black", alpha=0.5)+
+geom_point(shape=21, col="black")
+```
+
+The resultant seems demonstrate clearly how the first 2 principal axes separate the data points from one another, possibly distinguishing classes from one another.
+
+
+
+### Correlations between variances and PCs
+
+To understand how relevant each of the variables were to framing PC1 and 2 for instance, we can form a correlation matrix describing that phenomenon.
+
+```{r}
+cor(wine[,-1],PCAwp$x[,1:2])
+```
+
+It is worth nothing that this set of results are **NOT** the same as the the eigenvectors of the principal axes earlier. These results demonstrate how much correlated the variables were with the principal axes themselves. We will find later that the later principal axes are not nearly as involved in cementing that distinction between the classes.
+
+
+
+### Plotting the correlations
+
+
+```{r}
+r1<-cor(wine[,-1],PCAwp$x[,1:2])
+
+par(pty="s")
+ucircle=cbind(cos((0:360)/180*pi ) , sin((0:360)/180*pi))
+plot(ucircle, type="l",lty="solid", col="blue", lws = 2, xlab="First PC", ylab="Second PC", main = "Wine properties", cex.lab = 1.2,cex.axis = 1.2, cex.main=1.8)
+abline(h=0.0, v=0.0)
+
+text(x=r1, label=c("Alcohol", "Malic acid", "Ash", "Alcalinity of Ash", "Magnesium", "Total Phenols", "Flavanoids", "Nonflavonoid phenols", "Proanthocyanins", "Colour Intensity", "Hue", "Diluted wines", "Proline"), cex=.95)
+```
+
+
+The variables close to the periphery of the circle indicate that their variances are well explained by the first 2 principal axes. In this case, Total phenols, Flavanoids, Diluted wins and Proanthocyanins are the best explained variables by the first 2 principal axes. In contrast, Alcalinity of Ash appears to be the least well explained variable. Despite that, it is still a decently explained variable.
+
+For later principal axes however, the variables of interest appear to change.
+
+```{r}
+par(pty="s")
+par(mfrow = c(1,2))
+r1<-cor(wine[,-1],PCAwp$x[,3:4])
+ucircle=cbind(cos((0:360)/180*pi ) , sin((0:360)/180*pi))
+plot(ucircle, type="l",lty="solid", col="blue", lws = 2, xlab="3rd PC", ylab="4th PC", main = "Wine properties", cex.lab = 1.2,cex.axis = 1.2, cex.main=1.5)
+abline(h=0.0, v=0.0)
+text(x=r1, label=c("Alcohol", "Malic acid", "Ash", "Alcalinity of Ash", "Magnesium", "Total Phenols", "Flavanoids", "Nonflavonoid phenols", "Proanthocyanins", "Colour Intensity", "Hue", "Diluted wines", "Proline"), cex=.75)
+r1<-cor(wine[,-1],PCAwp$x[,5:6])
+ucircle=cbind(cos((0:360)/180*pi ) , sin((0:360)/180*pi))
+plot(ucircle, type="l",lty="solid", col="blue", lws = 2, xlab="5th PC", ylab="6th PC", main = "Wine properties", cex.lab = 1.2,cex.axis = 1.2, cex.main=1.5)
+abline(h=0.0, v=0.0)
+text(x=r1, label=c("Alcohol", "Malic acid", "Ash", "Alcalinity of Ash", "Magnesium", "Total Phenols", "Flavanoids", "Nonflavonoid phenols", "Proanthocyanins", "Colour Intensity", "Hue", "Diluted wines", "Proline"), cex=.75)
+```
+
+
+For instance, in the case of the 3rd and 4th PC, Alcalinity of Ash's variance is best explained, while that of Flavanoids and Colour intensity were the least well explained by this second pair of principal axes. For the 3rd pair of principal axes (PC 5 and 6), Malic acid's variance, which was previously mediocrely represented by the previous 2 pairs of principal axes, appears to be the relatively best explained.
+
+
+```{r}
+par(pty="s")
+par(mfrow = c(1,2))
+r1<-cor(wine[,-1],PCAwp$x[,7:8])
+ucircle=cbind(cos((0:360)/180*pi ) , sin((0:360)/180*pi))
+plot(ucircle, type="l",lty="solid", col="blue", lws = 2, xlab="7th PC", ylab="8th PC",  cex.lab = 1.2,cex.axis = 1.2, cex.main=1.8)
+abline(h=0.0, v=0.0)
+text(x=r1, label=c("Alcohol", "Malic acid", "Ash", "Alcalinity of Ash", "Magnesium", "Total Phenols", "Flavanoids", "Nonflavonoid phenols", "Proanthocyanins", "Colour Intensity", "Hue", "Diluted wines", "Proline"), cex=.65)
+r1<-cor(wine[,-1],PCAwp$x[,9:10])
+ucircle=cbind(cos((0:360)/180*pi ) , sin((0:360)/180*pi))
+plot(ucircle, type="l",lty="solid", col="blue", lws = 2, xlab="9th PC", ylab="10th PC",  cex.lab = 1.2,cex.axis = 1.2, cex.main=1.8)
+abline(h=0.0, v=0.0)
+text(x=r1, label=c("Alcohol", "Malic acid", "Ash", "Alcalinity of Ash", "Magnesium", "Total Phenols", "Flavanoids", "Nonflavonoid phenols", "Proanthocyanins", "Colour Intensity", "Hue", "Diluted wines", "Proline"), cex=.65)
+```
+
+As expected, as we go down the list of principal axes, the amount of variance explained by them in general decreases and very few variables appear to be favoured by the later principal axes. Diluted wines and Hue appear to be relatively better explained by the 9th and 10th principal axes, regardless. There are definitely limitations to this biplot visualisation method which are especially evident here. The sheer number of explanatory variables makes it somewhat difficult to account for in these plots.
+
+
+
+
+
+For the sake of curiosity, the extent to which the later principal axes appear to differentiate the points between classes can be plotted.
+
+
+### *Effectiveness of later applied principal axes in distinguishing classes visually
+
+
+
+```{r}
+newdata1<-cbind(wine, PCAwp$x[,1:13])
+
+ggplot(newdata1, aes(PC2, PC3, col=Class, fill=Class))+
+stat_ellipse(geom="polygon", col = "black", alpha=0.5)+
+geom_point(shape=21, col="black")
+```
+
+
+As evidenced by the fact that the classes are not vertically distinguishable from one another, PC3 appears to not be involved in differentiating the data points from one another based on class but on other characteristics.
+
+
+#### Later principal axis plots
+
+```{r}
+plot1<-ggplot(newdata1, aes(PC4, PC5, col=Class, fill=Class))+
+stat_ellipse(geom="polygon", col = "black", alpha=0.5)+
+geom_point(shape=21, col="black")+theme(legend.position="none")
+plot2<-ggplot(newdata1, aes(PC6, PC7, col=Class, fill=Class))+
+stat_ellipse(geom="polygon", col = "black", alpha=0.5)+
+geom_point(shape=21, col="black")+theme(legend.position="none")
+plot3<-ggplot(newdata1, aes(PC8, PC9, col=Class, fill=Class))+
+stat_ellipse(geom="polygon", col = "black", alpha=0.5)+
+geom_point(shape=21, col="black")+theme(legend.position="none")
+plot4<-ggplot(newdata1, aes(PC10, PC11, col=Class, fill=Class))+
+stat_ellipse(geom="polygon", col = "black", alpha=0.5)+
+geom_point(shape=21, col="black")+theme(legend.position="none")
+
+grid.arrange(plot1, plot2,plot3, plot4, ncol=2)
+```
+
+As expected, the plots indicate that class differentiation is not of concern for the later axes(PC3 onwards).
+
+
+
+
